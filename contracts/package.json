@@ -1,0 +1,11 @@
+{
+  "name": "hardhat-project",
+  "scripts": {
+    "clean": "hardhat clean",
+    "test": "hardhat test"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "^2.0.0",
+    "hardhat": "^2.19.1"
+  }
+}
