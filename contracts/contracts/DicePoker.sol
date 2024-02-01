@@ -13,7 +13,7 @@ contract DicePoker is Ownable {
         uint[] diceValues;
     }
 
-    Player[] public players;
+    Player[] private _players;
     uint public betAmount;
     uint public pot;
     bool public gameStarted;
@@ -30,12 +30,16 @@ contract DicePoker is Ownable {
         gameStarted = false;
     }
 
+    function players() external view returns (uint) {
+        return _players.length;
+    }
+
     // Function to join the game
     function joinGame() public payable {
         require(msg.value == betAmount, "Incorrect bet amount");
         require(!gameStarted, "Game already started");
 
-        players.push(
+        _players.push(
             Player({
                 playerAddress: msg.sender,
                 currentBet: msg.value,
@@ -49,7 +53,7 @@ contract DicePoker is Ownable {
 
     // Function to start the game
     function startGame() public onlyOwner {
-        require(players.length > 1, "Not enough players");
+        require(_players.length > 1, "Not enough players");
         gameStarted = true;
         emit GameStarted();
     }
@@ -68,9 +72,9 @@ contract DicePoker is Ownable {
                 1;
         }
 
-        for (uint i = 0; i < players.length; i++) {
-            if (players[i].playerAddress == msg.sender) {
-                players[i].diceValues = diceResults;
+        for (uint i = 0; i < _players.length; i++) {
+            if (_players[i].playerAddress == msg.sender) {
+                _players[i].diceValues = diceResults;
                 break;
             }
         }
@@ -86,17 +90,17 @@ contract DicePoker is Ownable {
         address winner;
 
         // Iterate through each player to calculate total dice values
-        for (uint i = 0; i < players.length; i++) {
+        for (uint i = 0; i < _players.length; i++) {
             uint total = 0;
 
-            for (uint j = 0; j < players[i].diceValues.length; j++) {
-                total += players[i].diceValues[j];
+            for (uint j = 0; j < _players[i].diceValues.length; j++) {
+                total += _players[i].diceValues[j];
             }
 
             // Check if the current total is greater than the highest total so far
             if (total > highestTotal) {
                 highestTotal = total;
-                winner = players[i].playerAddress;
+                winner = _players[i].playerAddress;
             }
         }
 
@@ -106,7 +110,7 @@ contract DicePoker is Ownable {
         emit GameEnded(winner, pot);
 
         // Reset game state for next round
-        delete players;
+        delete _players;
         pot = 0;
         gameStarted = false;
     }
