@@ -41,19 +41,28 @@ contract DicePoker is Ownable, RrpRequesterV0 {
     uint256[] public _qrngUint256Array; // The array of random numbers returned by the QRNG Airnode
 
     mapping(bytes32 => bool) public expectingRequestWithIdToBeFulfilled;
+
     // ##region - End QRNG configuration
 
     // Constructor to initialize the contract
-    constructor(uint256 _betAmount, address _airnodeRrp)
-        Ownable(msg.sender)
-        RrpRequesterV0(_airnodeRrp)
-    {
+    constructor(
+        uint256 _betAmount,
+        address _airnodeRrp
+    ) Ownable(msg.sender) RrpRequesterV0(_airnodeRrp) {
         betAmount = _betAmount;
         gameStarted = false;
     }
 
     function players() external view returns (uint256) {
         return _players.length;
+    }
+
+    function myDices() external view returns (uint256[]) {
+        for (uint i = 0; i < _players.length; i++) {
+            if (_players[i].playerAddress == msg.sender) {
+                return _players[i].diceValues;
+            }
+        }
     }
 
     // Function to join the game
@@ -153,8 +162,14 @@ contract DicePoker is Ownable, RrpRequesterV0 {
     }
 
     /// @notice Called by the Airnode through the AirnodeRrp contract to fulfill the request
-    function fulfillUint256Array(bytes32 requestId, bytes calldata data) external onlyAirnodeRrp {
-        require(expectingRequestWithIdToBeFulfilled[requestId], "Request ID not known");
+    function fulfillUint256Array(
+        bytes32 requestId,
+        bytes calldata data
+    ) external onlyAirnodeRrp {
+        require(
+            expectingRequestWithIdToBeFulfilled[requestId],
+            "Request ID not known"
+        );
         expectingRequestWithIdToBeFulfilled[requestId] = false;
         uint256[] memory qrngUint256Array = abi.decode(data, (uint256[]));
 

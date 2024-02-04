@@ -1,5 +1,7 @@
+import { env } from "./env";
+
 export const WALLETS = {
-  owner: "",
-  player1: "",
-  player2: "",
+  owner: env.OWNER,
+  player1: env.PLAYER1,
+  player2: env.PLAYER2,
 };
