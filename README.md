@@ -1,5 +1,5 @@
 ### Contract Process Configurations
-1. Deploy to DicePoker contract and pass in the constructor:
+1. Deploy for DicePoker contract and pass in the constructor:
     - `BetAmount`: WEI - `1000000000000000000` (0.001 ETH)
     - `AirnodeRrpV0 Address`: `0xa0AD79D995DdeeB18a14eAef56A549A04e3Aa1Bd` (Ligthlink Pegasus Testnet)
 
