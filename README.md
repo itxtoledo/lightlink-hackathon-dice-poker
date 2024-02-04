@@ -21,7 +21,7 @@ Contract Deployed (`sponsor`): https://pegasus.lightlink.io/address/0x6c6E28615D
     - Get the SponsorWallet address generate after command executed (`0xd6E795feAF661f93cEe6686fF28F9b28B6156800`)
 
 3. Send fund to the generated SponsorWallet on the Ligthlink Pegasus Testnet (at leat 0.01 ETH)
-    - Use the https://faucet.pegasus.lightlink.io and send the faucet to the `0xd6E795feAF661f93cEe6686fF28F9b28B6156800`
+    - Use the https://faucet.pegasus.lightlink.io and send the faucet to the `0xcafe675145c63B2D3aF8032164Bd7Fb382EDc040`
 
 Sponsor Wallet: https://pegasus.lightlink.io/address/0xd6E795feAF661f93cEe6686fF28F9b28B6156800
 
