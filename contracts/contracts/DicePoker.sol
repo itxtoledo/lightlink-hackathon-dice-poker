@@ -15,11 +15,12 @@ contract DicePoker is Ownable, RrpRequesterV0 {
     }
 
     Player[] private _players;
-    uint256 public betAmount; // https://eth-converter.com - 0.001 - 1000000000000000000
+    uint256 public betAmount;
     uint256 public pot;
     bool public gameStarted;
     uint256 public constant MAX_DICE_ON_GAME = 5;
     uint256 public constant MAX_VALUE_ON_DICE = 6;
+    mapping(bytes32 => address) public requestByUsers;
 
     // Event declarations
     event GameStarted();
@@ -121,6 +122,15 @@ contract DicePoker is Ownable, RrpRequesterV0 {
         gameStarted = false;
     }
 
+    function getPlayerDices(address player) external view returns (uint256[] memory results) {
+        for (uint i = 0; i < _players.length; i++) {
+            if (_players[i].playerAddress == player) {
+                results =  _players[i].diceValues;
+                break;
+            }
+        }
+    }
+
     // QRNG functions and logic to get the random number and random array of numbers
 
     /// @notice Sets the parameters for making requests
@@ -128,7 +138,7 @@ contract DicePoker is Ownable, RrpRequesterV0 {
         address _airnode,
         bytes32 _endpointIdUint256Array,
         address _sponsorWallet
-    ) external {
+    ) external onlyOwner {
         airnode = _airnode;
         endpointIdUint256Array = _endpointIdUint256Array;
         sponsorWallet = _sponsorWallet;
@@ -147,6 +157,8 @@ contract DicePoker is Ownable, RrpRequesterV0 {
             // Using Airnode ABI to encode the parameters
             abi.encode(bytes32("1u"), bytes32("size"), size)
         );
+
+        requestByUsers[requestId] = msg.sender;
 
         expectingRequestWithIdToBeFulfilled[requestId] = true;
         emit RequestedUint256Array(requestId, size);
@@ -168,13 +180,15 @@ contract DicePoker is Ownable, RrpRequesterV0 {
 
         // Start to add dice results to the player that made the move on roll dice
         for (uint256 i = 0; i < _players.length; i++) {
-            if (_players[i].playerAddress == msg.sender) {
+            if (requestByUsers[requestId] == _players[i].playerAddress) {
                 _players[i].diceValues = diceResults;
+
+                emit DiceRolled(_players[i].playerAddress, diceResults);
                 break;
             }
         }
 
-        emit DiceRolled(msg.sender, diceResults);
+        delete requestByUsers[requestId];
         emit ReceivedUint256Array(requestId, _qrngUint256Array);
     }
 
