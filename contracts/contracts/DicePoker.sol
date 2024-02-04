@@ -2,40 +2,62 @@
 // Developed by:
 // - Jether Rodrigues
 // - Gustavo Toledo
-pragma solidity ^0.8.0;
+pragma solidity 0.8.20;
 
+import "@api3/airnode-protocol/contracts/rrp/requesters/RrpRequesterV0.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract DicePoker is Ownable {
+contract DicePoker is Ownable, RrpRequesterV0 {
     struct Player {
         address playerAddress;
         uint256 currentBet;
-        uint[] diceValues;
+        uint256[] diceValues;
     }
 
     Player[] private _players;
-    uint public betAmount;
-    uint public pot;
+    uint256 public betAmount; // https://eth-converter.com - 0.001 - 1000000000000000000
+    uint256 public pot;
     bool public gameStarted;
+    uint256 public constant MAX_DICE_ON_GAME = 5;
+    uint256 public constant MAX_VALUE_ON_DICE = 6;
 
     // Event declarations
     event GameStarted();
     event PlayerJoined(address player);
-    event DiceRolled(address player, uint[] diceValues);
-    event GameEnded(address winner, uint winnings);
+    event DiceRolled(address player, uint256[] diceValues);
+    event GameEnded(address winner, uint256 winnings);
+
+    // ##region - Start QRNG configuration
+    event RequestedUint256Array(bytes32 indexed requestId, uint256 size);
+    event ReceivedUint256Array(bytes32 indexed requestId, uint256[] response);
+    event WithdrawalRequested(
+        address indexed airnode,
+        address indexed sponsorWallet
+    );
+
+    address public airnode; // The address of the QRNG Airnode
+    bytes32 public endpointIdUint256Array; // The endpoint ID for requesting an array of random numbers
+    address public sponsorWallet; // The wallet that will cover the gas costs of the request
+    uint256[] public _qrngUint256Array; // The array of random numbers returned by the QRNG Airnode
+
+    mapping(bytes32 => bool) public expectingRequestWithIdToBeFulfilled;
+    // ##region - End QRNG configuration
 
     // Constructor to initialize the contract
-    constructor(uint _betAmount) Ownable(msg.sender) {
+    constructor(uint256 _betAmount, address _airnodeRrp)
+        Ownable(msg.sender)
+        RrpRequesterV0(_airnodeRrp)
+    {
         betAmount = _betAmount;
         gameStarted = false;
     }
 
-    function players() external view returns (uint) {
+    function players() external view returns (uint256) {
         return _players.length;
     }
 
     // Function to join the game
-    function joinGame() public payable {
+    function joinGame() external payable {
         require(msg.value == betAmount, "Incorrect bet amount");
         require(!gameStarted, "Game already started");
 
@@ -43,7 +65,7 @@ contract DicePoker is Ownable {
             Player({
                 playerAddress: msg.sender,
                 currentBet: msg.value,
-                diceValues: new uint[](0)
+                diceValues: new uint256[](0)
             })
         );
 
@@ -51,49 +73,33 @@ contract DicePoker is Ownable {
         emit PlayerJoined(msg.sender);
     }
 
-    // Function to start the game
-    function startGame() public onlyOwner {
+    // Function to start the game, only Owner can call this function
+    function startGame() external onlyOwner {
         require(_players.length > 1, "Not enough players");
         gameStarted = true;
         emit GameStarted();
     }
 
     // Function to roll dice
-    function rollDice() public {
+    function rollDice() external {
         require(gameStarted, "Game not started");
-        // This is a placeholder for dice rolling logic
-        // In a real implementation, it should be a secure RNG
-        uint[] memory diceResults = new uint[](5); // Assuming 5 dice
-        for (uint i = 0; i < diceResults.length; i++) {
-            diceResults[i] =
-                (uint(
-                    keccak256(abi.encodePacked(block.timestamp, msg.sender, i))
-                ) % 6) +
-                1;
-        }
 
-        for (uint i = 0; i < _players.length; i++) {
-            if (_players[i].playerAddress == msg.sender) {
-                _players[i].diceValues = diceResults;
-                break;
-            }
-        }
-
-        emit DiceRolled(msg.sender, diceResults);
+        // Make request for an array of random numbers
+        makeRequestUint256Array(MAX_DICE_ON_GAME);
     }
 
-    // Function to end the game and declare winner
-    function endGame() public onlyOwner {
+    // Function to end the game and declare winner, only Owner can call this function
+    function endGame() external onlyOwner {
         require(gameStarted, "Game not started");
 
-        uint highestTotal = 0;
+        uint256 highestTotal = 0;
         address winner;
 
         // Iterate through each player to calculate total dice values
-        for (uint i = 0; i < _players.length; i++) {
-            uint total = 0;
+        for (uint256 i = 0; i < _players.length; i++) {
+            uint256 total = 0;
 
-            for (uint j = 0; j < _players[i].diceValues.length; j++) {
+            for (uint256 j = 0; j < _players[i].diceValues.length; j++) {
                 total += _players[i].diceValues[j];
             }
 
@@ -113,5 +119,73 @@ contract DicePoker is Ownable {
         delete _players;
         pot = 0;
         gameStarted = false;
+    }
+
+    // QRNG functions and logic to get the random number and random array of numbers
+
+    /// @notice Sets the parameters for making requests
+    function setRequestParameters(
+        address _airnode,
+        bytes32 _endpointIdUint256Array,
+        address _sponsorWallet
+    ) external {
+        airnode = _airnode;
+        endpointIdUint256Array = _endpointIdUint256Array;
+        sponsorWallet = _sponsorWallet;
+    }
+
+    /// @notice Requests a `uint256[]`
+    /// @param size Size of the requested array
+    function makeRequestUint256Array(uint256 size) internal {
+        bytes32 requestId = airnodeRrp.makeFullRequest(
+            airnode,
+            endpointIdUint256Array,
+            address(this), // This contract
+            sponsorWallet,
+            address(this), // This contract
+            this.fulfillUint256Array.selector,
+            // Using Airnode ABI to encode the parameters
+            abi.encode(bytes32("1u"), bytes32("size"), size)
+        );
+
+        expectingRequestWithIdToBeFulfilled[requestId] = true;
+        emit RequestedUint256Array(requestId, size);
+    }
+
+    /// @notice Called by the Airnode through the AirnodeRrp contract to fulfill the request
+    function fulfillUint256Array(bytes32 requestId, bytes calldata data) external onlyAirnodeRrp {
+        require(expectingRequestWithIdToBeFulfilled[requestId], "Request ID not known");
+        expectingRequestWithIdToBeFulfilled[requestId] = false;
+        uint256[] memory qrngUint256Array = abi.decode(data, (uint256[]));
+
+        _qrngUint256Array = qrngUint256Array;
+
+        // Fill dice results with module of random number on array
+        uint256[] memory diceResults = new uint256[](MAX_DICE_ON_GAME);
+        for (uint256 i = 0; i < diceResults.length; i++) {
+            diceResults[i] = (_qrngUint256Array[i] % MAX_VALUE_ON_DICE);
+        }
+
+        // Start to add dice results to the player that made the move on roll dice
+        for (uint256 i = 0; i < _players.length; i++) {
+            if (_players[i].playerAddress == msg.sender) {
+                _players[i].diceValues = diceResults;
+                break;
+            }
+        }
+
+        emit DiceRolled(msg.sender, diceResults);
+        emit ReceivedUint256Array(requestId, _qrngUint256Array);
+    }
+
+    /// @notice To withdraw funds from the sponsor wallet to the contract.
+    function withdraw() external onlyOwner {
+        airnodeRrp.requestWithdrawal(airnode, sponsorWallet);
+    }
+
+    /// @notice To receive funds from the sponsor wallet and send them to the owner.
+    receive() external payable {
+        payable(owner()).transfer(msg.value);
+        emit WithdrawalRequested(airnode, sponsorWallet);
     }
 }
