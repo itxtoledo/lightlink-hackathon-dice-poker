@@ -1,10 +1,12 @@
 ### Contract Process Configurations
-1. Deploy to DicePoker contract and pass in the constructor:
+1. Deploy for DicePoker contract and pass in the constructor:
     - `BetAmount`: WEI - `1000000000000000000` (0.001 ETH)
     - `AirnodeRrpV0 Address`: `0xa0AD79D995DdeeB18a14eAef56A549A04e3Aa1Bd` (Ligthlink Pegasus Testnet)
 
 Owner Wallet: `0xcafe675145c63B2D3aF8032164Bd7Fb382EDc040`
+
 Deploy Transacion: https://pegasus.lightlink.io/tx/0xeb62004933461de1663e120a7d0a60a5dc730ac16de912b4355834396814a657
+
 Contract Deployed (`sponsor`): https://pegasus.lightlink.io/address/0x6c6E28615Dc5DfaF3C6368dDf2652262C5F38eae
 
 2. Create a SponsorWallet:
